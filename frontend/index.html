@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VMRC — Virtual Machine Resources Calculator</title>
+  <link rel="stylesheet" href="style.css?v=7">
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <div class="mission-badge">VM</div>
+      <div>
+        <h1 class="mission-name">Virtual Machine Resources Calculator</h1>
+        <span class="mission-sub">Capacity planning &amp; cost estimation across AWS, Azure, and GCP</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="header-pill-btn" id="syncPricingBtn" title="Sync live prices from Azure Retail and Vantage feeds">
+        <span class="pill-dot" id="pricingDot"></span>
+        <span id="syncPricingText">Sync Prices</span>
+      </button>
+      <button class="header-pill-btn" id="cloudStatusBtn" title="Detect local Cloud CLI connection status">
+        <span class="pill-dot" id="cloudDot"></span>
+        <span id="cloudStatusText">Cloud CLI</span>
+      </button>
+      <div class="conn-block">
+        <span class="conn-dot" id="connDot"></span>
+        <span class="conn-text" id="connText">Checking API…</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="calculator">Calculator</button>
+    <button class="tab-btn" data-tab="compare">Compare</button>
+    <button class="tab-btn" data-tab="cost">Cost Estimator</button>
+    <button class="tab-btn" data-tab="fleet">Fleet Planner</button>
+    <button class="tab-btn" data-tab="rightsize">Right-Size</button>
+    <button class="tab-btn" data-tab="saved">Saved Scenarios</button>
+  </nav>
+
+  <main>
+    <section class="tab-panel active" id="tab-calculator">
+      <div class="panel">
+        <h2 class="panel-title">Workload Requirements</h2>
+        <form id="calcForm" novalidate>
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="workloadType">Workload Type</label>
+              <select id="workloadType" required>
+                <option value="web">Web Application</option>
+                <option value="database">Database</option>
+                <option value="app">Application Server</option>
+                <option value="cache">Cache</option>
+                <option value="ml">Machine Learning</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="concurrentUsers">Concurrent Users</label>
+              <input type="number" id="concurrentUsers" min="0" step="1" value="100" required>
+            </div>
+            <div class="form-field">
+              <label for="cpuPerUser">CPU per User (%)</label>
+              <input type="number" id="cpuPerUser" min="0" max="100" step="0.1" value="5" required>
+            </div>
+            <div class="form-field">
+              <label for="memoryPerUser">Memory per User (MB)</label>
+              <input type="number" id="memoryPerUser" min="0" step="1" value="256" required>
+            </div>
+            <div class="form-field">
+              <label for="storageGb">Storage (GB)</label>
+              <input type="number" id="storageGb" min="0" step="1" value="100" required>
+            </div>
+            <div class="form-field">
+              <label for="bandwidthMbps">Bandwidth (Mbps)</label>
+              <input type="number" id="bandwidthMbps" min="0" step="1" value="50" required>
+            </div>
+            <div class="form-field">
+              <label for="growthFactor">Growth Factor</label>
+              <input type="number" id="growthFactor" min="0" step="0.1" value="1.0" required>
+            </div>
+            <div class="form-field">
+              <label for="headroomPercent">Headroom (%)</label>
+              <input type="number" id="headroomPercent" min="0" max="100" step="1" value="20" required>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Calculate</button>
+          </div>
+          <div class="error-banner" id="calcError"></div>
+        </form>
+      </div>
+      <div class="empty-state" id="calcEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h8M8 14h5"/><circle cx="16.5" cy="17.5" r="3.5"/><path d="M19.5 20.5 22 23"/></svg>
+        <p>Run a calculation to see recommended resources and costs.</p>
+      </div>
+      <div class="results hidden" id="calcResults"></div>
+    </section>
+
+    <section class="tab-panel" id="tab-compare">
+      <div class="panel">
+        <h2 class="panel-title">Select Instances to Compare</h2>
+        <form id="compareForm" novalidate>
+          <div class="form-grid">
+            <div class="form-field full">
+              <label for="compareSelect">Instance Types (Ctrl/Cmd-click for multiple)</label>
+              <select id="compareSelect" multiple size="8" required></select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Compare</button>
+          </div>
+          <div class="error-banner" id="compareError"></div>
+        </form>
+      </div>
+      <div class="empty-state" id="compareEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="0.5"/><rect x="12" y="8" width="3" height="10" rx="0.5"/><rect x="17" y="4" width="3" height="14" rx="0.5"/></svg>
+        <p>Select at least 2 instances and compare them side by side.</p>
+      </div>
+      <div class="results hidden" id="compareResults"></div>
+    </section>
+
+    <section class="tab-panel" id="tab-cost">
+      <div class="panel">
+        <h2 class="panel-title">Cost Parameters</h2>
+        <form id="costForm" novalidate>
+          <div class="form-grid">
+            <div class="form-field full">
+              <label for="costSelect">Instances (Ctrl/Cmd-click for multiple)</label>
+              <select id="costSelect" multiple size="6" required></select>
+            </div>
+            <div class="form-field">
+              <label for="pricingModel">Pricing Model</label>
+              <select id="pricingModel" required>
+                <option value="ondemand">On-Demand</option>
+                <option value="reserved_1yr">Reserved 1 Year</option>
+                <option value="reserved_3yr">Reserved 3 Year</option>
+                <option value="spot">Spot</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="hoursPerMonth">Hours per Month</label>
+              <input type="number" id="hoursPerMonth" min="0" max="744" step="1" value="730" required>
+            </div>
+            <div class="form-field">
+              <label for="costStorageGb">Storage (GB)</label>
+              <input type="number" id="costStorageGb" min="0" step="1" value="100" required>
+            </div>
+            <div class="form-field">
+              <label for="egressGb">Data Egress (GB)</label>
+              <input type="number" id="egressGb" min="0" step="1" value="50" required>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Estimate</button>
+          </div>
+          <div class="error-banner" id="costError"></div>
+        </form>
+      </div>
+      <div class="empty-state" id="costEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 .9-3 2.2c0 3 6 1.6 6 4.6 0 1.3-1.3 2.2-3 2.2s-3-1.1-3-2.5"/></svg>
+        <p>Estimate costs for one or more instances.</p>
+      </div>
+      <div class="results hidden" id="costResults"></div>
+    </section>
+
+    <section class="tab-panel" id="tab-fleet">
+      <div class="panel">
+        <h2 class="panel-title">Fleet Composition</h2>
+        <form id="fleetForm" novalidate>
+          <div id="fleetRows"></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="addFleetRow">+ Add Instance</button>
+            <button type="submit" class="btn btn-primary">Calculate Fleet</button>
+          </div>
+          <div class="error-banner" id="fleetError"></div>
+        </form>
+      </div>
+      <div class="empty-state" id="fleetEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></svg>
+        <p>Add instances to your fleet and calculate total resources.</p>
+      </div>
+      <div class="results hidden" id="fleetResults"></div>
+    </section>
+
+    <section class="tab-panel" id="tab-rightsize">
+      <div class="panel">
+        <div class="panel-header-row">
+          <h2 class="panel-title">Utilization Analysis &amp; Right-Sizing</h2>
+          <div class="telemetry-modes" id="telemetryModes">
+            <button type="button" class="mode-btn active" data-mode="manual">Manual / Pasted</button>
+            <button type="button" class="mode-btn" data-mode="cloud">Query Cloud (Live)</button>
+            <button type="button" class="mode-btn" data-mode="file">Import File</button>
+            <button type="button" class="mode-btn" data-mode="presets">Demo Presets</button>
+          </div>
+        </div>
+
+        <!-- Cloud Query Bridge Subpanel -->
+        <div class="telemetry-subpanel hidden" id="subpanelCloud">
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="cloudProvider">Cloud Provider</label>
+              <select id="cloudProvider">
+                <option value="gcp">Google Cloud (Monitoring API)</option>
+                <option value="aws">AWS (CloudWatch)</option>
+                <option value="azure">Azure (Azure Monitor)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="cloudProject">Project / Subscription ID</label>
+              <input type="text" id="cloudProject" placeholder="e.g. my-cloud-project">
+            </div>
+            <div class="form-field">
+              <label for="cloudInstanceId">Instance ID / Resource Name</label>
+              <input type="text" id="cloudInstanceId" placeholder="e.g. 1234567890123456789">
+            </div>
+            <div class="form-field">
+              <label for="cloudZone">Zone / Region</label>
+              <input type="text" id="cloudZone" placeholder="e.g. us-central1-a" value="us-central1-a">
+            </div>
+            <div class="form-field">
+              <label for="cloudDays">Lookback Window</label>
+              <select id="cloudDays">
+                <option value="7">Last 7 Days</option>
+                <option value="14" selected>Last 14 Days</option>
+                <option value="30">Last 30 Days</option>
+              </select>
+            </div>
+            <div class="form-field btn-field-align">
+              <button type="button" class="btn btn-secondary full-width" id="fetchCloudTelemetryBtn">
+                <span>Fetch Cloud Metrics</span>
+              </button>
+            </div>
+          </div>
+          <div class="cloud-telemetry-notice" id="cloudTelemetryNotice">
+            <span>💡 Google Cloud queries live Application Default Credentials (ADC). AWS and Azure verify local sessions before fetching.</span>
+          </div>
+        </div>
+
+        <!-- File Import Subpanel -->
+        <div class="telemetry-subpanel hidden" id="subpanelFile">
+          <div class="dropzone" id="telemetryDropzone">
+            <input type="file" id="telemetryFileInput" accept=".csv,.json,.txt" class="hidden">
+            <div class="dropzone-content">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              <p>Drag and drop a <strong>CSV or JSON</strong> metric export here, or <span class="dropzone-link">browse</span></p>
+              <span class="dropzone-sub">Supports CloudWatch, Datadog, Prometheus, or raw percentage metrics</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Demo Presets Subpanel -->
+        <div class="telemetry-subpanel hidden" id="subpanelPresets">
+          <div class="preset-cards">
+            <button type="button" class="preset-card" data-preset="overprovisioned">
+              <span class="preset-title">Over-provisioned Web App</span>
+              <span class="preset-desc">p95 CPU 18%, Mem 35% on c5.2xlarge. Candidate for downsizing.</span>
+            </button>
+            <button type="button" class="preset-card" data-preset="memorydb">
+              <span class="preset-title">Memory-bound DB</span>
+              <span class="preset-desc">p95 CPU 25%, Mem 88% on r5.large. High RAM pressure.</span>
+            </button>
+            <button type="button" class="preset-card" data-preset="spiky">
+              <span class="preset-title">Spiky Batch Worker</span>
+              <span class="preset-desc">p95 CPU 82%, Mem 65% with peak bursts. Under-provisioned.</span>
+            </button>
+            <button type="button" class="preset-card" data-preset="idle">
+              <span class="preset-title">Dormant / Idle Instance</span>
+              <span class="preset-desc">p95 CPU 2%, Mem 4%. Candidate to terminate or move to nano.</span>
+            </button>
+          </div>
+        </div>
+
+        <form id="rightsizeForm" novalidate>
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="currentInstance">Current Instance</label>
+              <select id="currentInstance" required></select>
+            </div>
+            <div class="form-field full">
+              <div class="field-header-row">
+                <label for="utilizationData">Utilization Samples (%)</label>
+                <span class="samples-badge hidden" id="samplesBadge"></span>
+              </div>
+              <textarea id="utilizationData" required placeholder="CPU: 10, 22, 41, 35, 19&#10;Memory: 40, 55, 60, 48, 52&#10;Network: 5, 8, 12, 9, 7"></textarea>
+              <span class="field-hint">One line per metric (CPU, Memory, Network). Comma-separated percentage samples, or plain comma-separated numbers.</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Analyze</button>
+            <button type="button" class="btn btn-secondary" id="loadDemoUtilization">Load Demo Data</button>
+            <button type="button" class="btn btn-secondary" id="clearUtilizationBtn">Clear Data</button>
+          </div>
+          <div class="error-banner" id="rightsizeError"></div>
+        </form>
+      </div>
+      <div class="empty-state" id="rightsizeEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+        <p>Analyze utilization samples to right-size your instance.</p>
+      </div>
+      <div class="results hidden" id="rightsizeResults"></div>
+    </section>
+
+    <section class="tab-panel" id="tab-saved">
+      <div class="panel">
+        <h2 class="panel-title">Saved Scenarios</h2>
+        <div class="empty-state" id="savedEmpty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+          <p>No saved scenarios yet. Run a calculation and hit "Save Scenario" to keep it here.</p>
+        </div>
+        <div id="savedList" class="saved-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span class="footer-brand">VMRC — Virtual Machine Resources Calculator</span>
+    <span class="footer-meta">Vanilla JS · Chart.js · FastAPI · AWS / Azure / GCP</span>
+  </footer>
+
+  <div class="modal-backdrop" id="saveModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3 class="modal-title">Save Scenario</h3>
+      <div class="form-field">
+        <label for="scenarioName">Scenario name</label>
+        <input type="text" id="scenarioName" placeholder="e.g. Web app — 500 users" maxlength="80" autocomplete="off">
+      </div>
+      <div class="modal-error" id="saveError"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="cancelSave">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmSave">Save Scenario</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="cloudModal" role="dialog" aria-modal="true">
+    <div class="modal modal-lg">
+      <div class="modal-header-row">
+        <h3 class="modal-title">Local Cloud CLI Status</h3>
+        <button class="modal-close-btn" id="closeCloudModal" type="button">&times;</button>
+      </div>
+      <p class="modal-sub">Real-time status of local cloud tools (AWS, Azure, GCP) on this workstation for live telemetry and management.</p>
+      <div id="cloudStatusContent" class="cloud-status-grid">
+        <div class="cloud-loading">Checking local cloud CLI sessions...</div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="refreshCloudBtn">Re-check Sessions</button>
+        <button type="button" class="btn btn-primary" id="dismissCloudBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="pricingModal" role="dialog" aria-modal="true">
+    <div class="modal modal-lg">
+      <div class="modal-header-row">
+        <h3 class="modal-title">Live Pricing Provenance &amp; Sync</h3>
+        <button class="modal-close-btn" id="closePricingModal" type="button">&times;</button>
+      </div>
+      <p class="modal-sub">Fetch live on-demand instance pricing from Microsoft Azure Retail API and Vantage community feeds for AWS and GCP.</p>
+      <div id="pricingStatusContent" class="pricing-status-grid">
+        <div class="cloud-loading">Checking live pricing status...</div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="refreshAllPricesBtn">Sync All Providers</button>
+        <button type="button" class="btn btn-primary" id="dismissPricingBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="chart.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
