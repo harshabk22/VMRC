@@ -23,27 +23,26 @@ wheels/
 .installed.cfg
 *.egg
 
-# Testing, Logs & Tool Caches
+# Testing, Artifacts & Caches
 .pytest_cache/
 .coverage
 htmlcov/
 .playwright-mcp/
 .claude/
 
-# Local SQLite Database
+# Databases
 backend/vmrc.db
 backend/vmrc.db-journal
 *.db
 *.sqlite3
 
-# Documents, PDFs & Temporary Reports (DO NOT PUSH TO PUBLIC REPO)
+# Documents, Exports & Local Reports
 *.pdf
 *.docx
 report_images/
 extracted_ref_images/
 build_report_docx.py
 REQUIREMENTS.md
-CT-reference report.pdf
 
 # Operating System Files
 .DS_Store
